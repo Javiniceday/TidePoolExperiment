@@ -1,0 +1,44 @@
+#Tide pool volume experiment
+#scripted by Julio Rosales
+# edited on 1-15-19
+
+
+# clear the working directory #####
+rm(list = ls())
+
+
+# load the libraries #####
+library(tidyverse)
+library(nlme)
+library(purrr)
+library(broom)
+
+#load the data
+tdata<-read.csv("Tide_pool_vol_stdcurve_seawater_data.csv")
+View(tdata)
+
+#analyze data ####
+tdata %>% # this is the dataframe
+  group_by(Machine,DyeVolume) %>% #grouping by machine and dye volume
+  ggplot(aes(x= Absorbance, y= Volume))+   #setup plot with x and y data
+  geom_line() + #adding lines
+  facet_wrap(~Machine*DyeVolume) #dividing plots by machine and dye volume 
+
+
+
+# only include the compete cases
+tdata<-tdata[complete.cases(tdata),]
+
+#write a power function for each curve work in progress
+pool.coefs<-tdata %>%
+  group_by(Machine,DyeVolume) %>% #grouping by machine and dye volume
+  nest()%>% # nest everything by machine and dye volume
+  mutate( # mutate the dataframe
+    fit = map(data,~nls(Volume~b*Absorbance^z, start = list(b=-1, z=-1), data = .)), # run theregression model
+    tidied = map(fit,tidy)) %>% # make it clean 
+  unnest(tidied) %>% # unnest the data so that it is a dataframe again
+  select(c(Machine, DyeVolume, term, estimate))%>% # only select the parameters that we want
+  spread(key = term, value =  estimate) # spread the data so that each parameter has its own column
+
+# look at the results
+pool.coefs
